@@ -128,5 +128,6 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-# Added my myself
+# Added by myself
 .idea/
+report.json

@@ -77,8 +77,8 @@ class IndividualConversation(Conversation, abc.ABC):
 
 
 class Account(Artifact, abc.ABC):
-    def __init__(self, account_id: int, user: User, contacts: List[User], conversations: List[Conversation]):
+    def __init__(self, account_id: int, owner: User, users: List[User], conversations: List[Conversation]):
         self.account_id: int = account_id
-        self.user: User = user
-        self.contacts: List[User] = contacts
+        self.owner: User = owner
+        self.users: List[User] = users
         self.conversations: List[Conversation] = conversations

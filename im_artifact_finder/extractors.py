@@ -4,6 +4,9 @@ import re
 import mmap
 import os
 import struct
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class ArtifactExtractor(metaclass=abc.ABCMeta):
@@ -33,21 +36,20 @@ class ArtifactExtractor(metaclass=abc.ABCMeta):
 class TelegramDesktopArtifactExtractor(ArtifactExtractor):
     def __init__(self, memory_data_path: str):
         self.memory_data_path = memory_data_path
-        self.user_offsets: Dict[str, int] = {'name': 0, 'firstname': 192, 'lastname': 200, 'username': 208,
-                                             'phone': 368, 'is_contact': 376}
+        self.user_offsets: Dict[str, int] = {'id': 8, 'name': 16, 'firstname': 384, 'lastname': 392, 'username': 400,
+                                             'phone': 560, 'is_contact': 568, 'bytes_above_phone': 35 * 16,
+                                             'bytes_below_phone': 16}
+        self.user_subpattern_size: int = self.user_offsets['bytes_above_phone'] + self.user_offsets['bytes_below_phone']
         # Patterns to find the contents of QString objects
         self.qstring_contents_patterns = {'more_strict': re.compile(
             rb'[\x00\x01\x02][\x00]{3}[\x00-\xff][\x00]{3}[\x00-\xff][\x00]{2}[\x00\x80][\x00-\xff]{4}\x18[\x00]{7}[\x00-\xff]*?[\x00]{2}'),
             'less_strict': re.compile(rb'[\x00-\xff]{16}\x18[\x00]{7}[\x00-\xff]*?[\x00]{2}')}
 
     def extract_accounts(self) -> List[bytes]:
-        pass
+        return []
 
     def extract_users(self) -> List[bytes]:
         raw_users: List[bytes] = []
-        bytes_above_phone: int = 23 * 16
-        bytes_below_phone: int = 16
-        user_subpattern_size: int = bytes_above_phone + bytes_below_phone
         # Distance, in bytes, between the same attribute of two users stored next to each other in memory
         distance_between_users: int = 592
 
@@ -55,7 +57,7 @@ class TelegramDesktopArtifactExtractor(ArtifactExtractor):
         phone_number_pattern = re.compile(rb'(\d\x00){7,16}[\x00]{2}')
         phone_numbers: List[Tuple[bytes, str]] = find_matches_and_their_addresses(self.memory_data_path,
                                                                                   phone_number_pattern)
-        name_addresses: List[int] = []  # Memory addresses where users full names are stored as QStrings
+        user_addresses: List[int] = []  # Memory addresses of UserData objects
         for phone_number in phone_numbers:
             # Calculate the address where the contents of the QString object are
             qstring_contents_address: str = hex(int(phone_number[1], 16) - 24)
@@ -69,56 +71,86 @@ class TelegramDesktopArtifactExtractor(ArtifactExtractor):
                                                                                             qstring_contents_address_little_endian)))
                 for match in matches:
                     # Around the phone number QString, additional information about a user can be found
-                    contents: bytes = extract_surroundings(self.memory_data_path, match[1], bytes_above_phone,
-                                                           bytes_below_phone)
-                    name_address: int = int(match[1], 16) - bytes_above_phone
-                    if contents is not None and self.is_raw_user(hex(name_address)):
-                        name_addresses.append(name_address)
+                    contents: bytes = extract_surroundings(self.memory_data_path, match[1],
+                                                           self.user_offsets['bytes_above_phone'],
+                                                           self.user_offsets['bytes_below_phone'])
+                    user_address: int = int(match[1], 16) - self.user_offsets['bytes_above_phone']
+                    if contents is not None and self.is_raw_user(hex(user_address)):
+                        user_addresses.append(user_address)
                         raw_users.append(contents)
 
+        logger.debug(f'Potential Telegram Desktop raw users extracted by phone number: {len(raw_users)}')
+
         # Second, find users who are next in memory to the users previously found
-        name_addresses.sort()  # In increasing order
-        new_name_addresses = []
-        for name_address in name_addresses:
-            next_name_address = name_address + distance_between_users
-            while next_name_address not in name_addresses and next_name_address not in new_name_addresses and self.is_raw_user(
-                    hex(next_name_address)):
-                contents: bytes = extract_surroundings(self.memory_data_path, hex(next_name_address), 0,
-                                                       user_subpattern_size)
+        user_addresses.sort()  # In increasing order
+        new_user_addresses: List[int] = []
+        for user_address in user_addresses:
+            next_user_address: int = user_address + distance_between_users
+            while next_user_address not in user_addresses and next_user_address not in new_user_addresses and self.is_raw_user(
+                    hex(next_user_address)):
+                contents: bytes = extract_surroundings(self.memory_data_path, hex(next_user_address), 0,
+                                                       self.user_subpattern_size)
                 if contents is not None:
                     raw_users.append(contents)
-                    new_name_addresses.append(next_name_address)
-                    next_name_address += distance_between_users
+                    new_user_addresses.append(next_user_address)
+                    next_user_address += distance_between_users
                 else:
                     break
 
-        name_addresses.sort(reverse=True)  # In decreasing order
-        for name_address in name_addresses:
-            next_name_address = name_address - distance_between_users
-            while next_name_address not in name_addresses and next_name_address not in new_name_addresses and self.is_raw_user(
-                    hex(next_name_address)):
-                contents: bytes = extract_surroundings(self.memory_data_path, hex(next_name_address), 0,
-                                                       user_subpattern_size)
+        user_addresses.sort(reverse=True)  # In decreasing order
+        for user_address in user_addresses:
+            next_user_address: int = user_address - distance_between_users
+            while next_user_address not in user_addresses and next_user_address not in new_user_addresses and self.is_raw_user(
+                    hex(next_user_address)):
+                contents: bytes = extract_surroundings(self.memory_data_path, hex(next_user_address), 0,
+                                                       self.user_subpattern_size)
                 if contents is not None:
                     raw_users.append(contents)
-                    new_name_addresses.append(next_name_address)
-                    next_name_address = next_name_address - distance_between_users
+                    new_user_addresses.append(next_user_address)
+                    next_user_address -= distance_between_users
                 else:
                     break
 
+        logger.debug(f'Potential Telegram Desktop raw users extracted in total: {len(raw_users)}')
         return raw_users
 
     def extract_conversations(self) -> List[bytes]:
-        pass
+        return []
 
     def extract_messages(self) -> List[bytes]:
-        pass
+        raw_messages: List[bytes] = []
+        bytes_above_timetext: int = 10 * 16
+        bytes_below_timetext: int = 16
+        # Pattern to find valid times
+        timetext_pattern = re.compile(rb'([0-2]\x00)?\d\x00:\x00[0-5]\x00\d\x00')
+        timetexts: List[Tuple[bytes, str]] = find_matches_and_their_addresses(self.memory_data_path, timetext_pattern)
+        for timetext in timetexts:
+            # Calculate the address where the contents of the QString object _timeText are
+            # _timeText is an attribute that belongs to the class HistoryMessage
+            timetext_contents_address: str = hex(int(timetext[1], 16) - 24)
+            if self.is_address_of_qstring_contents(timetext_contents_address):
+                timetext_contents_address_as_int: int = int(timetext_contents_address, 16)
+                timetext_contents_address_little_endian: bytes = struct.pack('<Q', timetext_contents_address_as_int)
+                # Find the _timeText contents address in memory, and where that address is stored
+                matches: List[Tuple[bytes, str]] = find_matches_and_their_addresses(self.memory_data_path,
+                                                                                    re.compile(
+                                                                                        re.escape(
+                                                                                            timetext_contents_address_little_endian)))
+                for match in matches:
+                    # Around the _timeText QString, additional information about a message can be found
+                    contents: bytes = extract_surroundings(self.memory_data_path, match[1], bytes_above_timetext,
+                                                           bytes_below_timetext)
+                    if contents is not None:
+                        raw_messages.append(contents)
+
+        logger.debug(f'Potential Telegram Desktop raw messages extracted in total: {len(raw_messages)}')
+        return raw_messages
 
     def extract_message_attachments(self) -> List[bytes]:
-        pass
+        return []
 
     def is_raw_user(self, address: str) -> bool:
-        """Determine if the data stored around the address supplied corresponds to a user"""
+        """Determine if the data stored below the address supplied corresponds to a Telegram Desktop user"""
         address_as_int = int(address, 16)
         qstring_offsets: List[int] = [self.user_offsets['name'], self.user_offsets['firstname'],
                                       self.user_offsets['lastname'], self.user_offsets['username'],
@@ -140,7 +172,7 @@ class TelegramDesktopArtifactExtractor(ArtifactExtractor):
         return True
 
     def extract_qstring_text(self, address: str) -> str:
-        """Extract the text of the first QString object found after the address supplied"""
+        """Extract the text of the first QString contents found after the address supplied"""
         address_as_int: int = int(address, 16)
         qstring_contents_pattern = self.qstring_contents_patterns['less_strict']
         for filename in os.listdir(self.memory_data_path):

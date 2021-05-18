@@ -51,11 +51,11 @@ class TelegramDesktopMessage(Message):
 
 
 class TelegramDesktopGroup(Group):
-    def __init__(self, conversation_id: int = None, name: str = None, messages: List[TelegramDesktopMessage] = None,
-                 participants: List[TelegramDesktopUser] = None, admins: List[TelegramDesktopUser] = None,
-                 participants_count: int = None, admins_count: int = None, is_megagroup: bool = None,
-                 is_public: bool = None, creator: TelegramDesktopUser = None):
-        super().__init__(conversation_id, name, messages, participants, admins)
+    def __init__(self, conversation_id: int = None, conversation_type: str = 'Group', name: str = None,
+                 messages: List[TelegramDesktopMessage] = None, participants: List[TelegramDesktopUser] = None,
+                 admins: List[TelegramDesktopUser] = None, participants_count: int = None, admins_count: int = None,
+                 is_megagroup: bool = None, is_public: bool = None, creator: TelegramDesktopUser = None):
+        super().__init__(conversation_id, conversation_type, name, messages, participants, admins)
         self.participants_count: int = participants_count
         self.admins_count: int = admins_count
         self.is_megagroup: bool = is_megagroup
@@ -67,10 +67,11 @@ class TelegramDesktopGroup(Group):
 
 
 class TelegramDesktopChannel(Channel):
-    def __init__(self, conversation_id: int = None, name: str = None, messages: List[TelegramDesktopMessage] = None,
-                 publishers: List[TelegramDesktopUser] = None, subscribers: List[TelegramDesktopUser] = None,
-                 subscribers_count: int = None, publishers_count: int = None, is_public: bool = None):
-        super().__init__(conversation_id, name, messages, publishers, subscribers)
+    def __init__(self, conversation_id: int = None, conversation_type: str = 'Channel', name: str = None,
+                 messages: List[TelegramDesktopMessage] = None, publishers: List[TelegramDesktopUser] = None,
+                 subscribers: List[TelegramDesktopUser] = None, subscribers_count: int = None,
+                 publishers_count: int = None, is_public: bool = None):
+        super().__init__(conversation_id, conversation_type, name, messages, publishers, subscribers)
         self.subscribers_count: int = subscribers_count
         self.publishers_count: int = publishers_count
         self.is_public: bool = is_public
@@ -80,9 +81,10 @@ class TelegramDesktopChannel(Channel):
 
 
 class TelegramDesktopIndividualConversation(IndividualConversation):
-    def __init__(self, conversation_id: int = None, name: str = None, messages: List[TelegramDesktopMessage] = None,
+    def __init__(self, conversation_id: int = None, conversation_type: str = 'Individual conversation',
+                 name: str = None, messages: List[TelegramDesktopMessage] = None,
                  users: List[TelegramDesktopUser] = None):
-        super().__init__(conversation_id, name, messages, users)
+        super().__init__(conversation_id, conversation_type, name, messages, users)
 
     def to_json_format(self) -> str:
         return json_representation(self)

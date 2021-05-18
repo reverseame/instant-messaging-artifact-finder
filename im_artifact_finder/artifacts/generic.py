@@ -48,31 +48,33 @@ class Message(Artifact, abc.ABC):
 
 
 class Conversation(Artifact, abc.ABC):
-    def __init__(self, conversation_id: int, name: str, messages: List[Message]):
+    def __init__(self, conversation_id: int, conversation_type: str, name: str, messages: List[Message]):
         self.conversation_id: int = conversation_id
+        self.conversation_type: str = conversation_type
         self.name: str = name
         self.messages: List[Message] = messages
 
 
 class Group(Conversation, abc.ABC):
-    def __init__(self, conversation_id: int, name: str, messages: List[Message], participants: List[User],
-                 admins: List[User]):
-        super().__init__(conversation_id, name, messages)
+    def __init__(self, conversation_id: int, conversation_type: str, name: str, messages: List[Message],
+                 participants: List[User], admins: List[User]):
+        super().__init__(conversation_id, conversation_type, name, messages)
         self.participants: List[User] = participants
         self.admins: List[User] = admins
 
 
 class Channel(Conversation, abc.ABC):
-    def __init__(self, conversation_id: int, name: str, messages: List[Message], publishers: List[User],
-                 subscribers: List[User]):
-        super().__init__(conversation_id, name, messages)
+    def __init__(self, conversation_id: int, conversation_type: str, name: str, messages: List[Message],
+                 publishers: List[User], subscribers: List[User]):
+        super().__init__(conversation_id, conversation_type, name, messages)
         self.publishers: List[User] = publishers
         self.subscribers: List[User] = subscribers
 
 
 class IndividualConversation(Conversation, abc.ABC):
-    def __init__(self, conversation_id: int, name: str, messages: List[Message], users: List[User]):
-        super().__init__(conversation_id, name, messages)
+    def __init__(self, conversation_id: int, conversation_type: str, name: str, messages: List[Message],
+                 users: List[User]):
+        super().__init__(conversation_id, conversation_type, name, messages)
         self.users: List[User] = users
 
 

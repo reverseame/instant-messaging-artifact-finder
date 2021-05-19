@@ -74,15 +74,19 @@ class ArtifactFinder:
         for raw_message_attachment in raw_message_attachments:
             message_attachments.append(self.artifact_analyzer.analyze_message_attachment(raw_message_attachment))
 
-        organized_accounts: List[Dict[str, Any]] = self.artifact_organizer.organize(accounts, users, conversations,
-                                                                                    messages, message_attachments)
+        organized_accounts: List[Dict[str, Any]] = self.artifact_organizer.organize_before_creation(accounts, users,
+                                                                                                    conversations,
+                                                                                                    messages,
+                                                                                                    message_attachments)
         account_objects: List[Account] = []
         for organized_account in organized_accounts:
             account_object: Account = self.platform_factory.create_account(organized_account)
             if account_object is not None:
                 account_objects.append(account_object)
 
-        return account_objects
+        organized_account_objects: List[Account] = self.artifact_organizer.organize_after_creation(account_objects)
+
+        return organized_account_objects
 
     def generate_report(self, artifacts: List[Artifact]) -> None:
         if self.report_format != ReportFormat.NO_REPORT:

@@ -4,7 +4,7 @@ import logging
 
 from extractors import ArtifactExtractor, TelegramDesktopArtifactExtractor
 from analyzers import ArtifactAnalyzer, TelegramDesktopArtifactAnalyzer
-from organizers import ArtifactOrganizer, TelegramDesktopArtifactOrganizer
+from organizers import ArtifactOrganizer, TelegramDesktopArtifactOrganizer, is_user_repeated
 from artifacts.generic import Account, User, Conversation, Message, MessageAttachment
 from artifacts.telegram_desktop import TelegramDesktopAccount, TelegramDesktopUser, TelegramDesktopMessage, \
     TelegramDesktopIndividualConversation, TelegramDesktopGroup, TelegramDesktopChannel
@@ -164,11 +164,3 @@ class TelegramDesktopFactory(InstantMessagingPlatformFactory):
 
     def create_message_attachment(self, dictionary: Dict[str, Any]) -> MessageAttachment:
         pass
-
-
-def is_user_repeated(users: List[User], new_user: User) -> bool:
-    if new_user.user_id is not None:
-        for user in users:
-            if user.user_id == new_user.user_id:
-                return True
-    return False

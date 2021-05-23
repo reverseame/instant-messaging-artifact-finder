@@ -36,9 +36,9 @@ class ArtifactExtractor(metaclass=abc.ABCMeta):
 class TelegramDesktopArtifactExtractor(ArtifactExtractor):
     def __init__(self, memory_data_path: str):
         self.memory_data_path = memory_data_path
-        self.user_offsets: Dict[str, int] = {'id': 8, 'name': 16, 'firstname': 384, 'lastname': 392, 'username': 400,
-                                             'phone': 560, 'is_contact': 568, 'bytes_above_phone': 35 * 16,
-                                             'bytes_below_phone': 16}
+        self.user_offsets: Dict[str, int] = {'id': 8, 'name': 16, 'is_blocked': 352, 'firstname': 384, 'lastname': 392,
+                                             'username': 400, 'is_bot': 480, 'phone': 560, 'is_contact': 568,
+                                             'bytes_above_phone': 35 * 16, 'bytes_below_phone': 16}
         self.user_subpattern_size: int = self.user_offsets['bytes_above_phone'] + self.user_offsets['bytes_below_phone']
         # Patterns to find the contents of QString objects
         self.qstring_contents_patterns = {'more_strict': re.compile(
@@ -188,7 +188,13 @@ class TelegramDesktopArtifactExtractor(ArtifactExtractor):
                                 match_contents: bytes = match.group()
                                 text_length: bytes = match_contents[4:8]
                                 text_length_as_int: int = struct.unpack('<i', text_length)[0]
-                                return match_contents[24:24 + text_length_as_int * 2].decode('utf-16-le')
+                                try:
+                                    return match_contents[24:24 + text_length_as_int * 2].decode('utf-16-le')
+                                except UnicodeDecodeError as unicode_decode_error:
+                                    logger.exception(unicode_decode_error)
+                                    print(
+                                        'Error: A recoverable error has occurred when decoding from UTF-16, as a result, the text of the QString will be "Error when decoding from UTF-16"')
+                                    return 'Error when decoding from UTF-16'
 
     def is_address_of_qstring_contents(self, address: str) -> bool:
         """Find out if the given address points to the contents of a QString object"""

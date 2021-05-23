@@ -70,6 +70,18 @@ class TelegramDesktopArtifactAnalyzer(ArtifactAnalyzer):
         user_id_offset: int = self.artifact_extractor.user_offsets['id']
         user_id_data: int = int(little_endian_to_big_endian(bytearray(raw_data[user_id_offset:user_id_offset + 8])), 16)
         user_data['id'] = user_id_data
+        is_bot_offset: int = self.artifact_extractor.user_offsets['is_bot']
+        is_bot_data: bytes = raw_data[is_bot_offset: is_bot_offset + 8]
+        if is_bot_data != b'\x00\x00\x00\x00\x00\x00\x00\x00':  # If the pointer is not nullptr
+            user_data['is_bot'] = True
+        else:
+            user_data['is_bot'] = False
+        is_blocked_offset: int = self.artifact_extractor.user_offsets['is_blocked']
+        is_blocked_data: bytes = raw_data[is_blocked_offset: is_blocked_offset + 1]
+        if is_blocked_data == b'\x01':
+            user_data['is_blocked'] = True
+        elif is_blocked_data == b'\x02':
+            user_data['is_blocked'] = False
         return user_data
 
     def analyze_conversation(self, raw_data: bytes) -> Dict[str, Any]:
@@ -104,7 +116,7 @@ class TelegramDesktopArtifactAnalyzer(ArtifactAnalyzer):
         text_contents_address_as_str: str = little_endian_to_big_endian(text_contents_address)
         if self.artifact_extractor.is_address_of_qstring_contents(text_contents_address_as_str):
             text: str = self.artifact_extractor.extract_qstring_text(text_contents_address_as_str)
-            if text.endswith('_'):
+            if text is not None and text.endswith('_'):
                 text = text[:-1]
             message_data['text'] = text
 

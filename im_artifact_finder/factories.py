@@ -98,6 +98,10 @@ class TelegramDesktopFactory(InstantMessagingPlatformFactory):
                 user.is_contact = dictionary['is_contact']
             if 'id' in dictionary:
                 user.user_id = dictionary['id']
+            if 'is_bot' in dictionary:
+                user.is_bot = dictionary['is_bot']
+            if 'is_blocked' in dictionary:
+                user.is_blocked = dictionary['is_blocked']
             if 'strings' in dictionary:
                 strings: List[str] = dictionary['strings']
                 if len(strings) >= 2 and strings[0] + ' ' + strings[1] == dictionary['name']:

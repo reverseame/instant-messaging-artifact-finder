@@ -32,10 +32,10 @@ class File(MessageAttachment, abc.ABC):
 
 
 class GeographicLocation(MessageAttachment, abc.ABC):
-    def __init__(self, attachment_id: int, longitude: float, latitude: float):
+    def __init__(self, attachment_id: int, latitude: float, longitude: float):
         super().__init__(attachment_id)
-        self.longitude: float = longitude
         self.latitude: float = latitude
+        self.longitude: float = longitude
 
 
 class User(Artifact, abc.ABC):

@@ -26,9 +26,9 @@ class TelegramDesktopFile(File):
 
 
 class TelegramDesktopGeographicLocation(GeographicLocation):
-    def __init__(self, attachment_id: int = None, longitude: float = None, latitude: float = None, title: str = None,
+    def __init__(self, attachment_id: int = None, latitude: float = None, longitude: float = None, title: str = None,
                  description: str = None):
-        super().__init__(attachment_id, longitude, latitude)
+        super().__init__(attachment_id, latitude, longitude)
         self.title: str = title
         self.description: str = description
 

@@ -8,7 +8,7 @@ from organizers import ArtifactOrganizer, TelegramDesktopArtifactOrganizer, is_u
 from artifacts.generic import Account, User, Conversation, Message, MessageAttachment
 from artifacts.telegram_desktop import TelegramDesktopAccount, TelegramDesktopUser, TelegramDesktopMessage, \
     TelegramDesktopIndividualConversation, TelegramDesktopGroup, TelegramDesktopChannel, TelegramDesktopFile, \
-    TelegramDesktopSharedUser
+    TelegramDesktopSharedUser, TelegramDesktopGeographicLocation
 
 logger = logging.getLogger(__name__)
 
@@ -181,3 +181,11 @@ class TelegramDesktopFactory(InstantMessagingPlatformFactory):
             if 'phone_number' in dictionary:
                 shared_user.phone_number = dictionary['phone_number']
             return shared_user
+        elif dictionary['attachment_type'] == 'geographic_location':
+            geographic_location: TelegramDesktopGeographicLocation = TelegramDesktopGeographicLocation(
+                latitude=dictionary['latitude'], longitude=dictionary['longitude'])
+            if 'title' in dictionary:
+                geographic_location.title = dictionary['title']
+            if 'description' in dictionary:
+                geographic_location.description = dictionary['description']
+            return geographic_location

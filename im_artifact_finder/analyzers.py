@@ -2,6 +2,7 @@ import abc
 from typing import Dict, List, Any
 import logging
 from datetime import datetime, timezone
+import struct
 
 from extractors import TelegramDesktopArtifactExtractor, extract_surroundings
 
@@ -37,6 +38,7 @@ class TelegramDesktopArtifactAnalyzer(ArtifactAnalyzer):
         self.artifact_extractor = artifact_extractor
         self.file_offsets: Dict[str, int] = {'filename': 80, 'filetype': 88}
         self.shared_contact_offsets: Dict[str, int] = {'firstname': 24, 'lastname': 32, 'phone_number': 40}
+        self.media_location_offsets: Dict[str, int] = {'latitude': 16, 'longitude': 24, 'title': 48, 'description': 56}
 
     def analyze_account(self, raw_data: bytes) -> Dict[str, Any]:
         return {}
@@ -184,13 +186,13 @@ class TelegramDesktopArtifactAnalyzer(ArtifactAnalyzer):
 
     def analyze_message_attachment(self, raw_data: bytes) -> Dict[str, Any]:
         message_attachment_data: Dict[str, Any] = {}
-        media_offsets: Dict[str, int] = {'documentdata': 16}
-        # geographic_location_offsets: Dict[str, int] = {'title': 48, 'description': 56}
+        media_file_offsets: Dict[str, int] = {'document': 16}
 
         # Check if the attachment is a file (represented with the MediaFile and DocumentData classes)
         # Get the pointer to a DocumentData object. That pointer is stored in a MediaFile object
         documentdata_subpattern_size: int = 6 * 16
-        documentdata_address: bytes = raw_data[media_offsets['documentdata']: media_offsets['documentdata'] + 8]
+        documentdata_address: bytes = raw_data[
+                                      media_file_offsets['document']: media_file_offsets['document'] + 8]
         documentdata_address_as_str: str = little_endian_to_big_endian(bytearray(documentdata_address))
         if self.is_documentdata_address(documentdata_address_as_str):
 
@@ -247,6 +249,40 @@ class TelegramDesktopArtifactAnalyzer(ArtifactAnalyzer):
             if 'firstname' in message_attachment_data:
                 message_attachment_data['attachment_type'] = 'shared_contact'
 
+        # Check if the attachment is a geographic location (represented with the MediaLocation and LocationPoint classes)
+        if self.is_media_location(raw_data):
+            # Get the latitude
+            latitude = bytearray(
+                raw_data[self.media_location_offsets['latitude']:self.media_location_offsets['latitude'] + 8])
+            latitude_as_float: int = struct.unpack('!d', bytes.fromhex(little_endian_to_big_endian(latitude)))[0]
+            message_attachment_data['latitude'] = latitude_as_float
+
+            # Get the longitude
+            longitude = bytearray(
+                raw_data[self.media_location_offsets['longitude']:self.media_location_offsets['longitude'] + 8])
+            longitude_as_float: float = struct.unpack('!d', bytes.fromhex(little_endian_to_big_endian(longitude)))[0]
+            message_attachment_data['longitude'] = longitude_as_float
+
+            # Get the geographic location title
+            title_contents_address = bytearray(
+                raw_data[self.media_location_offsets['title']:self.media_location_offsets['title'] + 8])
+            title_contents_address_as_str: str = little_endian_to_big_endian(title_contents_address)
+            title_text = self.artifact_extractor.extract_qstring_text(title_contents_address_as_str)
+            if title_text is not None and title_text != '' and bytes(title_text, 'utf-8') != b'\x00':
+                message_attachment_data['title'] = title_text
+
+            # Get the geographic location description
+            description_contents_address = bytearray(
+                raw_data[self.media_location_offsets['description']:
+                         self.media_location_offsets['description'] + 8])
+            description_contents_address_as_str: str = little_endian_to_big_endian(description_contents_address)
+            description_text = self.artifact_extractor.extract_qstring_text(description_contents_address_as_str)
+            if description_text is not None and description_text != '' and bytes(description_text, 'utf-8') != b'\x00':
+                message_attachment_data['description'] = description_text
+
+            if 'latitude' in message_attachment_data and 'longitude' in message_attachment_data:
+                message_attachment_data['attachment_type'] = 'geographic_location'
+
         return message_attachment_data
 
     def is_peerdata_address(self, address: str) -> bool:
@@ -283,6 +319,19 @@ class TelegramDesktopArtifactAnalyzer(ArtifactAnalyzer):
 
         for qstring_offset in qstring_offsets:
             qstring_contents_address: bytes = raw_contact[qstring_offset: qstring_offset + 8]
+            if not self.artifact_extractor.is_address_of_qstring_contents(
+                    little_endian_to_big_endian(bytearray(qstring_contents_address))):
+                return False
+
+        return True
+
+    def is_media_location(self, raw_location: bytes) -> bool:
+        """Check if the given data is a MediaLocation object"""
+        qstring_offsets: List[int] = [self.media_location_offsets['title'],
+                                      self.media_location_offsets['description']]
+
+        for qstring_offset in qstring_offsets:
+            qstring_contents_address: bytes = raw_location[qstring_offset: qstring_offset + 8]
             if not self.artifact_extractor.is_address_of_qstring_contents(
                     little_endian_to_big_endian(bytearray(qstring_contents_address))):
                 return False

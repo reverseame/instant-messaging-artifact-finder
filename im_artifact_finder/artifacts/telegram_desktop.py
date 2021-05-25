@@ -2,15 +2,23 @@ from typing import List
 from datetime import datetime
 
 from .utils import json_representation
-from .generic import File, GeographicLocation, User, Message, MessageAttachment, Group, Channel, IndividualConversation, \
-    Account, Conversation
+from .generic import SharedUser, File, GeographicLocation, User, Message, MessageAttachment, Group, Channel, \
+    IndividualConversation, Account, Conversation
+
+
+class TelegramDesktopSharedUser(SharedUser):
+    def __init__(self, attachment_id: int = None, name: str = None, phone_number: str = None):
+        super().__init__(attachment_id, name)
+        self.phone_number: str = phone_number
+
+    def to_json_format(self) -> str:
+        return json_representation(self)
 
 
 class TelegramDesktopFile(File):
-    def __init__(self, attachment_id: int = None, filepath: str = None, filename: str = None, size: int = None,
-                 url: str = None):
-        super().__init__(attachment_id, filepath, filename)
-        self.size: int = size
+    def __init__(self, attachment_id: int = None, filepath: str = None, filename: str = None, filetype: str = None,
+                 size: int = None, url: str = None):
+        super().__init__(attachment_id, filepath, filename, filetype, size)
         self.url: str = url
 
     def to_json_format(self) -> str:

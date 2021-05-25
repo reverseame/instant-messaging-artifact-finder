@@ -190,8 +190,8 @@ class TelegramDesktopArtifactExtractor(ArtifactExtractor):
                                 text_length_as_int: int = struct.unpack('<i', text_length)[0]
                                 try:
                                     return match_contents[24:24 + text_length_as_int * 2].decode('utf-16-le')
-                                except UnicodeDecodeError as unicode_decode_error:
-                                    logger.exception(unicode_decode_error)
+                                except UnicodeDecodeError:
+                                    # logger.exception(unicode_decode_error)
                                     print(
                                         'Error: A recoverable error has occurred when decoding from UTF-16, as a result, the text of the QString will be "Error when decoding from UTF-16"')
                                     return 'Error when decoding from UTF-16'

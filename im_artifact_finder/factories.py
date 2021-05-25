@@ -7,7 +7,8 @@ from analyzers import ArtifactAnalyzer, TelegramDesktopArtifactAnalyzer
 from organizers import ArtifactOrganizer, TelegramDesktopArtifactOrganizer, is_user_repeated
 from artifacts.generic import Account, User, Conversation, Message, MessageAttachment
 from artifacts.telegram_desktop import TelegramDesktopAccount, TelegramDesktopUser, TelegramDesktopMessage, \
-    TelegramDesktopIndividualConversation, TelegramDesktopGroup, TelegramDesktopChannel
+    TelegramDesktopIndividualConversation, TelegramDesktopGroup, TelegramDesktopChannel, TelegramDesktopFile, \
+    TelegramDesktopSharedUser
 
 logger = logging.getLogger(__name__)
 
@@ -164,7 +165,19 @@ class TelegramDesktopFactory(InstantMessagingPlatformFactory):
                 else:
                     message.sender = TelegramDesktopUser(user_id=dictionary['sender']['id'],
                                                          name=dictionary['sender']['name'])
+            if 'attachment' in dictionary:
+                message.attachments = [self.create_message_attachment(dictionary['attachment'])]
+
             return message
 
     def create_message_attachment(self, dictionary: Dict[str, Any]) -> MessageAttachment:
-        pass
+        if dictionary['attachment_type'] == 'file':
+            return TelegramDesktopFile(filename=dictionary['filename'],
+                                       filetype=dictionary['filetype'])
+        elif dictionary['attachment_type'] == 'shared_contact':
+            shared_user: TelegramDesktopSharedUser = TelegramDesktopSharedUser(name=dictionary['firstname'])
+            if 'lastname' in dictionary:
+                shared_user.name = dictionary['firstname'] + ' ' + dictionary['lastname']
+            if 'phone_number' in dictionary:
+                shared_user.phone_number = dictionary['phone_number']
+            return shared_user

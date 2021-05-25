@@ -16,11 +16,19 @@ class MessageAttachment(Artifact, abc.ABC):
         self.attachment_id: int = attachment_id
 
 
+class SharedUser(MessageAttachment, abc.ABC):
+    def __init__(self, attachment_id: int, name: str):
+        super().__init__(attachment_id)
+        self.name: str = name
+
+
 class File(MessageAttachment, abc.ABC):
-    def __init__(self, attachment_id: int, filepath: str, filename: str):
+    def __init__(self, attachment_id: int, filepath: str, filename: str, filetype: str, size: int):
         super().__init__(attachment_id)
         self.filepath: str = filepath
         self.filename: str = filename
+        self.filetype: str = filetype
+        self.size: int = size
 
 
 class GeographicLocation(MessageAttachment, abc.ABC):

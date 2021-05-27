@@ -36,9 +36,10 @@ class ArtifactExtractor(metaclass=abc.ABCMeta):
 class TelegramDesktopArtifactExtractor(ArtifactExtractor):
     def __init__(self, memory_data_path: str):
         self.memory_data_path = memory_data_path
-        self.user_offsets: Dict[str, int] = {'id': 8, 'name': 16, 'is_blocked': 352, 'firstname': 384, 'lastname': 392,
-                                             'username': 400, 'is_bot': 480, 'phone': 560, 'is_contact': 568,
-                                             'bytes_above_phone': 35 * 16, 'bytes_below_phone': 16}
+        self.peer_offsets: Dict[str, int] = {'id': 8, 'name': 16, 'data_session': 48, 'is_blocked': 352}
+        self.user_offsets: Dict[str, int] = {'firstname': 384, 'lastname': 392, 'username': 400, 'is_bot': 480,
+                                             'phone': 560, 'is_contact': 568, 'bytes_above_phone': 35 * 16,
+                                             'bytes_below_phone': 16}
         self.user_subpattern_size: int = self.user_offsets['bytes_above_phone'] + self.user_offsets['bytes_below_phone']
         # Patterns to find the contents of QString objects
         self.qstring_contents_patterns = {'more_strict': re.compile(
@@ -150,9 +151,13 @@ class TelegramDesktopArtifactExtractor(ArtifactExtractor):
         return []
 
     def is_raw_user(self, address: str) -> bool:
-        """Determine if the data stored below the address supplied corresponds to a Telegram Desktop user"""
+        """
+        Determine if the data stored below the address supplied corresponds to a Telegram Desktop user.
+
+        A Telegram Desktop user is represented with the UserData class.
+        """
         address_as_int = int(address, 16)
-        qstring_offsets: List[int] = [self.user_offsets['name'], self.user_offsets['firstname'],
+        qstring_offsets: List[int] = [self.peer_offsets['name'], self.user_offsets['firstname'],
                                       self.user_offsets['lastname'], self.user_offsets['username'],
                                       self.user_offsets['phone']]
 

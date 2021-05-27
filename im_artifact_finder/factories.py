@@ -68,7 +68,7 @@ class TelegramDesktopFactory(InstantMessagingPlatformFactory):
                 if user is not None:
                     users.append(user)
             account: TelegramDesktopAccount = TelegramDesktopAccount()
-            if 'owner' in dictionary:
+            if 'owner' in dictionary and dictionary['owner'] is not None:
                 owner: TelegramDesktopUser = self.create_user(dictionary['owner'])
                 if owner is not None:
                     account.owner = owner
@@ -79,7 +79,6 @@ class TelegramDesktopFactory(InstantMessagingPlatformFactory):
                     if conversation is not None:
                         conversations.append(conversation)
                 account.conversations = conversations
-                logger.info(f'Number of Telegram Desktop conversations retrieved: {len(conversations)}')
                 message_counter: int = 0
                 for conversation in conversations:
                     message_counter += len(conversation.messages)
@@ -87,8 +86,20 @@ class TelegramDesktopFactory(InstantMessagingPlatformFactory):
                         if not is_user_repeated(users, message.sender):
                             users.append(message.sender)
                 account.users = users
-                logger.info(f'Number of Telegram Desktop messages retrieved: {message_counter}')
-                logger.info(f'Number of Telegram Desktop users retrieved: {len(users)}')
+                if account.owner is not None:
+                    logger.info(
+                        f'Number of Telegram Desktop conversations retrieved corresponding to the account whose owner id is {account.owner.user_id}: {len(conversations)}')
+                    logger.info(
+                        f'Number of Telegram Desktop messages retrieved corresponding to the account whose owner id is {account.owner.user_id}: {message_counter}')
+                    logger.info(
+                        f'Number of Telegram Desktop users retrieved corresponding to the account whose owner id is {account.owner.user_id}: {len(users)}')
+                else:
+                    logger.info(
+                        f'Number of Telegram Desktop conversations retrieved that could not be associated with any account: {len(conversations)}')
+                    logger.info(
+                        f'Number of Telegram Desktop messages retrieved that could not be associated with any account: {message_counter}')
+                    logger.info(
+                        f'Number of Telegram Desktop users retrieved that could not be associated with any account: {len(users)}')
 
             return account
 
@@ -144,12 +155,16 @@ class TelegramDesktopFactory(InstantMessagingPlatformFactory):
                     messages.sort(key=lambda x: x.date)  # Sort the messages by the time they were sent
                     conversation.messages = messages
                     # If the conversation is an individual conversation, identify the two users involved
-                    if conversation_type == 'Individual conversation':
+                    # Besides, if the conversation is a group, identify the participants
+                    if conversation_type == 'Individual conversation' or conversation_type == 'Group':
                         users: List[User] = []
                         for message in messages:
                             if message.sender is not None and not is_user_repeated(users, message.sender):
                                 users.append(message.sender)
-                        conversation.users = users
+                        if conversation_type == 'Individual conversation':
+                            conversation.users = users
+                        elif conversation_type == 'Group':
+                            conversation.participants = users
             return conversation
 
     def create_message(self, dictionary: Dict[str, Any]) -> TelegramDesktopMessage:

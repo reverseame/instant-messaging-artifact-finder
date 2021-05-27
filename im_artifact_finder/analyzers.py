@@ -36,6 +36,7 @@ class ArtifactAnalyzer(metaclass=abc.ABCMeta):
 class TelegramDesktopArtifactAnalyzer(ArtifactAnalyzer):
     def __init__(self, artifact_extractor: TelegramDesktopArtifactExtractor):
         self.artifact_extractor = artifact_extractor
+        self.non_user_peer_subpattern_size: int = self.artifact_extractor.peer_offsets['data_session'] + 8
         self.file_offsets: Dict[str, int] = {'filename': 80, 'filetype': 88}
         self.shared_contact_offsets: Dict[str, int] = {'firstname': 24, 'lastname': 32, 'phone_number': 40}
         self.media_location_offsets: Dict[str, int] = {'latitude': 16, 'longitude': 24, 'title': 48, 'description': 56}
@@ -45,7 +46,7 @@ class TelegramDesktopArtifactAnalyzer(ArtifactAnalyzer):
 
     def analyze_user(self, raw_data: bytes) -> Dict[str, Any]:
         user_strings: List[str] = []  # List that stores information about the user
-        qstring_offsets: List[int] = [self.artifact_extractor.user_offsets['name'],
+        qstring_offsets: List[int] = [self.artifact_extractor.peer_offsets['name'],
                                       self.artifact_extractor.user_offsets['firstname'],
                                       self.artifact_extractor.user_offsets['lastname'],
                                       self.artifact_extractor.user_offsets['username'],
@@ -71,7 +72,7 @@ class TelegramDesktopArtifactAnalyzer(ArtifactAnalyzer):
         elif is_contact_data == b'\x02':
             user_data['is_contact'] = False
 
-        user_id_offset: int = self.artifact_extractor.user_offsets['id']
+        user_id_offset: int = self.artifact_extractor.peer_offsets['id']
         user_id_data: int = int(little_endian_to_big_endian(bytearray(raw_data[user_id_offset:user_id_offset + 8])), 16)
         user_data['id'] = user_id_data
 
@@ -82,18 +83,21 @@ class TelegramDesktopArtifactAnalyzer(ArtifactAnalyzer):
         else:
             user_data['is_bot'] = False
 
-        is_blocked_offset: int = self.artifact_extractor.user_offsets['is_blocked']
+        is_blocked_offset: int = self.artifact_extractor.peer_offsets['is_blocked']
         is_blocked_data: bytes = raw_data[is_blocked_offset: is_blocked_offset + 1]
         if is_blocked_data == b'\x01':
             user_data['is_blocked'] = True
         elif is_blocked_data == b'\x02':
             user_data['is_blocked'] = False
 
+        user_data['account_owner_id'] = self.retrieve_account_owner_id(raw_data)
+
         return user_data
 
     def analyze_conversation(self, raw_data: bytes) -> Dict[str, Any]:
         conversation_data: Dict[str, Any] = {}
-        name_contents_address: str = little_endian_to_big_endian(bytearray(raw_data[16:24]))
+        name_contents_address: str = little_endian_to_big_endian(bytearray(
+            raw_data[self.artifact_extractor.peer_offsets['name']:self.artifact_extractor.peer_offsets['name'] + 8]))
         name_text = self.artifact_extractor.extract_qstring_text(name_contents_address)
         if name_text is not None and name_text != '' and bytes(name_text, 'utf-8') != b'\x00':
             conversation_data['name'] = name_text
@@ -112,6 +116,10 @@ class TelegramDesktopArtifactAnalyzer(ArtifactAnalyzer):
             conversation_data['type'] = 'Channel'
         else:
             conversation_data['type'] = 'Unknown'
+
+        if conversation_data['type'] != 'Unknown':
+            conversation_data['account_owner_id'] = self.retrieve_account_owner_id(raw_data)
+
         return conversation_data
 
     def analyze_message(self, raw_data: bytes) -> Dict[str, Any]:
@@ -149,7 +157,7 @@ class TelegramDesktopArtifactAnalyzer(ArtifactAnalyzer):
                 message_data['sender'] = self.analyze_user(raw_from_userdata)
         elif self.is_peerdata_address(from_pointer_as_str):
             raw_from_peerdata: bytes = extract_surroundings(self.artifact_extractor.memory_data_path,
-                                                            from_pointer_as_str, 0, 24)
+                                                            from_pointer_as_str, 0, self.non_user_peer_subpattern_size)
             if raw_from_peerdata is not None:
                 message_data['sender'] = self.analyze_conversation(raw_from_peerdata)
 
@@ -165,7 +173,8 @@ class TelegramDesktopArtifactAnalyzer(ArtifactAnalyzer):
             peerdata_address_as_str: str = little_endian_to_big_endian(peerdata_address)
             if self.is_peerdata_address(peerdata_address_as_str):
                 raw_peerdata: bytes = extract_surroundings(self.artifact_extractor.memory_data_path,
-                                                           peerdata_address_as_str, 0, 24)
+                                                           peerdata_address_as_str, 0,
+                                                           self.non_user_peer_subpattern_size)
                 if raw_peerdata is not None:
                     message_data['conversation'] = self.analyze_conversation(raw_peerdata)
 
@@ -287,9 +296,12 @@ class TelegramDesktopArtifactAnalyzer(ArtifactAnalyzer):
 
     def is_peerdata_address(self, address: str) -> bool:
         """Find out if the given address corresponds to the beginning of a PeerData object"""
-        raw_peerdata: bytes = extract_surroundings(self.artifact_extractor.memory_data_path, address, 0, 24)
+        name_offset: int = self.artifact_extractor.peer_offsets['name']
+        raw_peerdata: bytes = extract_surroundings(self.artifact_extractor.memory_data_path, address, 0,
+                                                   name_offset + 8)
         if raw_peerdata is not None:
-            name_contents_address: str = little_endian_to_big_endian(bytearray(raw_peerdata[16:24]))
+            name_contents_address: str = little_endian_to_big_endian(
+                bytearray(raw_peerdata[name_offset: name_offset + 8]))
             if self.artifact_extractor.is_address_of_qstring_contents(name_contents_address):
                 return True
         return False
@@ -337,6 +349,52 @@ class TelegramDesktopArtifactAnalyzer(ArtifactAnalyzer):
                 return False
 
         return True
+
+    def retrieve_account_owner_id(self, raw_peerdata: bytes) -> int:
+        """Retrieve the id of the account owner related to a user or a conversation"""
+
+        # There are four steps to achieve the id of the account owner:
+        # Note: raw_peerdata is a PeerData object
+        # First step: Retrieve the _owner pointer, in order to get the contents of the Data::Session object
+        data_session_subpattern_size = 48
+        data_session_offset: int = self.artifact_extractor.peer_offsets['data_session']
+        data_session_pointer = bytearray(raw_peerdata[data_session_offset:data_session_offset + 8])
+        data_session_pointer_as_str: str = little_endian_to_big_endian(data_session_pointer)
+        raw_data_session: bytes = extract_surroundings(self.artifact_extractor.memory_data_path,
+                                                       data_session_pointer_as_str, 0,
+                                                       data_session_subpattern_size)
+
+        # Second step: Retrieve the _session pointer stored in the Data::Session object, in order to get the contents
+        # of the Main::Session object
+        if raw_data_session is not None:
+            data_session_offsets: Dict[str, int] = {'main_session': 0}
+            main_session_offsets: Dict[str, int] = {'user': 128}
+            main_session_subpattern_size = main_session_offsets['user'] + 8
+            main_session_offset: int = data_session_offsets['main_session']
+            main_session_pointer = bytearray(raw_data_session[main_session_offset:main_session_offset + 8])
+            main_session_pointer_as_str: str = little_endian_to_big_endian(main_session_pointer)
+            raw_main_session: bytes = extract_surroundings(self.artifact_extractor.memory_data_path,
+                                                           main_session_pointer_as_str, 0,
+                                                           main_session_subpattern_size)
+
+            # Third step: Retrieve the _user pointer stored in the Main::Session object, in order to identify the owner
+            # of the account
+            if raw_main_session is not None:
+                account_owner_offset: int = main_session_offsets['user']
+                account_owner_pointer = bytearray(raw_main_session[account_owner_offset:account_owner_offset + 8])
+                account_owner_pointer_as_str: str = little_endian_to_big_endian(account_owner_pointer)
+                if self.artifact_extractor.is_raw_user(account_owner_pointer_as_str):
+                    raw_account_owner: bytes = extract_surroundings(self.artifact_extractor.memory_data_path,
+                                                                    account_owner_pointer_as_str, 0,
+                                                                    self.artifact_extractor.peer_offsets['id'] + 8)
+
+                    # Fourth step: Retrieve the id of the account owner
+                    if raw_account_owner is not None:
+                        account_owner_id_offset: int = self.artifact_extractor.peer_offsets['id']
+                        account_owner_id_data: int = int(
+                            little_endian_to_big_endian(
+                                bytearray(raw_account_owner[account_owner_id_offset:account_owner_id_offset + 8])), 16)
+                        return account_owner_id_data
 
 
 def little_endian_to_big_endian(data_as_bytearray: bytearray) -> str:

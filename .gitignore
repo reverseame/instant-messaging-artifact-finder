@@ -131,3 +131,4 @@ dmypy.json
 # Added by myself
 .idea/
 report.json
+summary.txt

@@ -6,6 +6,7 @@ import shutil
 import logging
 
 from artifacts.generic import Artifact, Account
+from artifacts.utils import object_representation
 from factories import InstantMessagingPlatformFactory, TelegramDesktopFactory
 from extractors import ArtifactExtractor
 from analyzers import ArtifactAnalyzer
@@ -93,6 +94,41 @@ class ArtifactFinder:
             self.writer.write(artifacts)
 
 
+def generate_summary(accounts: List[Account]) -> None:
+    with open('summary.txt', 'w', encoding='utf-8') as summary:
+        summary.write(f'Number of accounts found: {len(accounts)}\n\n')
+        for i in range(0, len(accounts)):
+            summary.write(f'Information about account {i + 1}:\n')
+            if accounts[i].owner is not None:
+                summary.write(f'\tOwner: {accounts[i].owner.name}\n')
+            else:
+                summary.write('\tOwner: The account owner could not be identified\n')
+            conversations_count: int = 0
+            messages_count: int = 0
+            last_conversation = None
+            last_message = None
+            if accounts[i].conversations is not None:
+                conversations_count = len(accounts[i].conversations)
+                for conversation in accounts[i].conversations:
+                    if conversation.messages is not None:
+                        messages_count += len(conversation.messages)
+                        if len(conversation.messages) > 0 and (last_message is None or (
+                                conversation.messages[-1].date is not None and last_message.date <
+                                conversation.messages[-1].date)):
+                            last_message = conversation.messages[-1]
+                            last_conversation = conversation
+            summary.write(f'\tNumber of conversations found: {conversations_count}\n')
+            summary.write(f'\tNumber of messages found: {messages_count}\n')
+            users_count = 0
+            if accounts[i].users is not None:
+                users_count = len(accounts[i].users)
+            summary.write(f'\tNumber of users found: {users_count}\n')
+            if last_conversation is not None and last_message is not None:
+                summary.write(
+                    f'\tThe most recent message recovered was sent at {object_representation(last_message.date)} in the conversation with {last_conversation.name}\n')
+            summary.write('\n')
+
+
 def validate_memory_data_path(memory_data_path) -> None:
     """Validate that the directory exists and that it contains at least one .dmp file"""
     if not os.path.isdir(memory_data_path):
@@ -159,6 +195,7 @@ def find_artifacts(memory_data_path: str, platform: InstantMessagingPlatform, re
     artifact_finder: ArtifactFinder = ArtifactFinder(memory_data_path, platform, report_format)
     accounts: List[Account] = artifact_finder.find_accounts()
     artifact_finder.generate_report(accounts)
+    generate_summary(accounts)
     if is_tmp_dir_supplied:
         shutil.rmtree(memory_data_path)
 

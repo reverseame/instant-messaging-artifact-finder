@@ -45,18 +45,18 @@ class TelegramDesktopArtifactAnalyzer(ArtifactAnalyzer):
         return {}
 
     def analyze_user(self, raw_data: bytes) -> Dict[str, Any]:
-        user_strings: List[str] = []  # List that stores information about the user
+        user_strings: List[str] = []  # List that stores information about the user.
         qstring_offsets: List[int] = [self.artifact_extractor.peer_offsets['name'],
                                       self.artifact_extractor.user_offsets['firstname'],
                                       self.artifact_extractor.user_offsets['lastname'],
                                       self.artifact_extractor.user_offsets['username'],
                                       self.artifact_extractor.user_offsets['phone']]
-        # Obtain each QString contents address, which will be in little endian
+        # Obtain each QString contents address, which will be in little endian.
         for qstring_offset in qstring_offsets:
             qstring_contents_address = bytearray(raw_data[qstring_offset:qstring_offset + 8])
-            # Transform the address to big endian
+            # Transform the address to big endian.
             qstring_contents_address_as_str: str = little_endian_to_big_endian(qstring_contents_address)
-            # Check if the address points to the contents of a QString object
+            # Check if the address points to the contents of a QString object.
             if self.artifact_extractor.is_address_of_qstring_contents(qstring_contents_address_as_str):
                 qstring_text = self.artifact_extractor.extract_qstring_text(qstring_contents_address_as_str)
                 if qstring_text is not None and qstring_text != '' and bytes(qstring_text, 'utf-8') != b'\x00':
@@ -128,8 +128,8 @@ class TelegramDesktopArtifactAnalyzer(ArtifactAnalyzer):
                                            'timetext': 160}
         history_offsets: Dict[str, int] = {'peer': 192}
 
-        # Get the _text QString contents address
-        # _text is an attribute that belongs to the class String
+        # Get the _text QString contents address.
+        # _text is an attribute that belongs to the String class.
         text_contents_address = bytearray(raw_data[message_offsets['text']:message_offsets['text'] + 8])
         text_contents_address_as_str: str = little_endian_to_big_endian(text_contents_address)
         if self.artifact_extractor.is_address_of_qstring_contents(text_contents_address_as_str):
@@ -138,15 +138,15 @@ class TelegramDesktopArtifactAnalyzer(ArtifactAnalyzer):
                 text = text[:-1]
             message_data['text'] = text
 
-        # Get _date contents
-        # _date is an attribute that belongs to the class HistoryItem
-        # _date represents the moment when the sender sent the message
-        # _date is stored as seconds since 1 January 1970
+        # Get _date contents.
+        # _date is an attribute that belongs to the class HistoryItem.
+        # _date represents the moment when the sender sent the message.
+        # _date is stored as seconds since 1 January 1970.
         epoch_date = bytearray(raw_data[message_offsets['date']:message_offsets['date'] + 4])
         epoch_date_as_int: int = int(little_endian_to_big_endian(epoch_date), 16)
         message_data['date'] = datetime.fromtimestamp(epoch_date_as_int, timezone.utc)
 
-        # Get _from pointer, in order to identify the sender of the message
+        # Get _from pointer, in order to identify the sender of the message.
         from_pointer = bytearray(raw_data[message_offsets['from']:message_offsets['from'] + 8])
         from_pointer_as_str: str = little_endian_to_big_endian(from_pointer)
         if self.artifact_extractor.is_raw_user(from_pointer_as_str):
@@ -161,13 +161,13 @@ class TelegramDesktopArtifactAnalyzer(ArtifactAnalyzer):
             if raw_from_peerdata is not None:
                 message_data['sender'] = self.analyze_conversation(raw_from_peerdata)
 
-        # Get _history pointer, in order to identify the conversation where the message was sent
+        # Get _history pointer, in order to identify the conversation where the message was sent.
         history_pointer = bytearray(raw_data[message_offsets['history']:message_offsets['history'] + 8])
         history_pointer_as_str: str = little_endian_to_big_endian(history_pointer)
         history_raw_data: bytes = extract_surroundings(self.artifact_extractor.memory_data_path, history_pointer_as_str,
                                                        0, history_offsets['peer'] + 8)
         if history_raw_data is not None:
-            # Get the peer attribute from the History object
+            # Get the peer attribute from the History object.
             peerdata_address = bytearray(
                 history_raw_data[history_offsets['peer']:history_offsets['peer'] + 8])
             peerdata_address_as_str: str = little_endian_to_big_endian(peerdata_address)
@@ -178,14 +178,14 @@ class TelegramDesktopArtifactAnalyzer(ArtifactAnalyzer):
                 if raw_peerdata is not None:
                     message_data['conversation'] = self.analyze_conversation(raw_peerdata)
 
-        # Check if the message has an attachment (the attachments are subclasses of Media)
+        # Check if the message has an attachment (the attachments are subclasses of Media).
         media_pointer: bytes = raw_data[message_offsets['media']:message_offsets['media'] + 8]
         if media_pointer != b'\x00\x00\x00\x00\x00\x00\x00\x00':
-            # Get the Media object
+            # Get the Media object.
             media_pointer_as_str: str = little_endian_to_big_endian(bytearray(media_pointer))
             raw_media: bytes = extract_surroundings(self.artifact_extractor.memory_data_path,
                                                     media_pointer_as_str, 0, 64)
-            # Analyze the Media object
+            # Analyze the Media object.
             if raw_media is not None:
                 message_attachment_data: Dict[str, Any] = self.analyze_message_attachment(raw_media)
                 if 'attachment_type' in message_attachment_data:
@@ -197,8 +197,8 @@ class TelegramDesktopArtifactAnalyzer(ArtifactAnalyzer):
         message_attachment_data: Dict[str, Any] = {}
         media_file_offsets: Dict[str, int] = {'document': 16}
 
-        # Check if the attachment is a file (represented with the MediaFile and DocumentData classes)
-        # Get the pointer to a DocumentData object. That pointer is stored in a MediaFile object
+        # Check if the attachment is a file (represented with the MediaFile and DocumentData classes).
+        # Get the pointer to a DocumentData object. That pointer is stored in a MediaFile object.
         documentdata_subpattern_size: int = 6 * 16
         documentdata_address: bytes = raw_data[
                                       media_file_offsets['document']: media_file_offsets['document'] + 8]
@@ -209,7 +209,7 @@ class TelegramDesktopArtifactAnalyzer(ArtifactAnalyzer):
                                                            documentdata_address_as_str, 0, documentdata_subpattern_size)
 
             if raw_documentdata is not None:
-                # Get the name of the file
+                # Get the name of the file.
                 filename_contents_address = bytearray(
                     raw_documentdata[self.file_offsets['filename']:self.file_offsets['filename'] + 8])
                 filename_contents_address_as_str: str = little_endian_to_big_endian(filename_contents_address)
@@ -217,7 +217,7 @@ class TelegramDesktopArtifactAnalyzer(ArtifactAnalyzer):
                 if filename_text is not None and filename_text != '' and bytes(filename_text, 'utf-8') != b'\x00':
                     message_attachment_data['filename'] = filename_text
 
-                # Get the type of the file
+                # Get the type of the file.
                 filetype_contents_address = bytearray(
                     raw_documentdata[self.file_offsets['filetype']:self.file_offsets['filetype'] + 8])
                 filetype_contents_address_as_str: str = little_endian_to_big_endian(filetype_contents_address)
@@ -228,9 +228,9 @@ class TelegramDesktopArtifactAnalyzer(ArtifactAnalyzer):
                 if 'filename' in message_attachment_data and 'filetype' in message_attachment_data:
                     message_attachment_data['attachment_type'] = 'file'
 
-        # Check if the attachment is a shared contact (represented with the MediaContact and SharedContact classes)
+        # Check if the attachment is a shared contact (represented with the MediaContact and SharedContact classes).
         if self.is_media_contact(raw_data):
-            # Get the contact first name
+            # Get the contact first name.
             firstname_contents_address = bytearray(
                 raw_data[self.shared_contact_offsets['firstname']:self.shared_contact_offsets['firstname'] + 8])
             firstname_contents_address_as_str: str = little_endian_to_big_endian(firstname_contents_address)
@@ -238,7 +238,7 @@ class TelegramDesktopArtifactAnalyzer(ArtifactAnalyzer):
             if firstname_text is not None and firstname_text != '' and bytes(firstname_text, 'utf-8') != b'\x00':
                 message_attachment_data['firstname'] = firstname_text
 
-            # Get the contact last name
+            # Get the contact last name.
             lastname_contents_address = bytearray(
                 raw_data[self.shared_contact_offsets['lastname']:self.shared_contact_offsets['lastname'] + 8])
             lastname_contents_address_as_str: str = little_endian_to_big_endian(lastname_contents_address)
@@ -246,7 +246,7 @@ class TelegramDesktopArtifactAnalyzer(ArtifactAnalyzer):
             if lastname_text is not None and lastname_text != '' and bytes(lastname_text, 'utf-8') != b'\x00':
                 message_attachment_data['lastname'] = lastname_text
 
-            # Get the contact phone number
+            # Get the contact phone number.
             phone_number_contents_address = bytearray(
                 raw_data[self.shared_contact_offsets['phone_number']:self.shared_contact_offsets['phone_number'] + 8])
             phone_number_contents_address_as_str: str = little_endian_to_big_endian(phone_number_contents_address)
@@ -258,21 +258,21 @@ class TelegramDesktopArtifactAnalyzer(ArtifactAnalyzer):
             if 'firstname' in message_attachment_data:
                 message_attachment_data['attachment_type'] = 'shared_contact'
 
-        # Check if the attachment is a geographic location (represented with the MediaLocation and LocationPoint classes)
+        # Check if the attachment is a geographic location (represented with the MediaLocation and LocationPoint classes).
         if self.is_media_location(raw_data):
-            # Get the latitude
+            # Get the latitude.
             latitude = bytearray(
                 raw_data[self.media_location_offsets['latitude']:self.media_location_offsets['latitude'] + 8])
             latitude_as_float: int = struct.unpack('!d', bytes.fromhex(little_endian_to_big_endian(latitude)))[0]
             message_attachment_data['latitude'] = latitude_as_float
 
-            # Get the longitude
+            # Get the longitude.
             longitude = bytearray(
                 raw_data[self.media_location_offsets['longitude']:self.media_location_offsets['longitude'] + 8])
             longitude_as_float: float = struct.unpack('!d', bytes.fromhex(little_endian_to_big_endian(longitude)))[0]
             message_attachment_data['longitude'] = longitude_as_float
 
-            # Get the geographic location title
+            # Get the geographic location title.
             title_contents_address = bytearray(
                 raw_data[self.media_location_offsets['title']:self.media_location_offsets['title'] + 8])
             title_contents_address_as_str: str = little_endian_to_big_endian(title_contents_address)
@@ -280,7 +280,7 @@ class TelegramDesktopArtifactAnalyzer(ArtifactAnalyzer):
             if title_text is not None and title_text != '' and bytes(title_text, 'utf-8') != b'\x00':
                 message_attachment_data['title'] = title_text
 
-            # Get the geographic location description
+            # Get the geographic location description.
             description_contents_address = bytearray(
                 raw_data[self.media_location_offsets['description']:
                          self.media_location_offsets['description'] + 8])
@@ -295,7 +295,7 @@ class TelegramDesktopArtifactAnalyzer(ArtifactAnalyzer):
         return message_attachment_data
 
     def is_peerdata_address(self, address: str) -> bool:
-        """Find out if the given address corresponds to the beginning of a PeerData object"""
+        """Find out if the given address corresponds to the beginning of a PeerData object."""
         name_offset: int = self.artifact_extractor.peer_offsets['name']
         raw_peerdata: bytes = extract_surroundings(self.artifact_extractor.memory_data_path, address, 0,
                                                    name_offset + 8)
@@ -307,12 +307,12 @@ class TelegramDesktopArtifactAnalyzer(ArtifactAnalyzer):
         return False
 
     def is_documentdata_address(self, address: str) -> bool:
-        """Find out if the given address corresponds to the beginning of a DocumentData object"""
+        """Find out if the given address corresponds to the beginning of a DocumentData object."""
         address_as_int = int(address, 16)
         qstring_offsets: List[int] = [self.file_offsets['filename'], self.file_offsets['filetype']]
 
         for qstring_offset in qstring_offsets:
-            # Obtain the address in little endian
+            # Obtain the address in little endian.
             qstring_contents_address: bytes = extract_surroundings(self.artifact_extractor.memory_data_path,
                                                                    hex(address_as_int + qstring_offset), 0, 8)
             if qstring_contents_address is not None:
@@ -325,7 +325,7 @@ class TelegramDesktopArtifactAnalyzer(ArtifactAnalyzer):
         return True
 
     def is_media_contact(self, raw_contact: bytes) -> bool:
-        """Check if the given data is a MediaContact object"""
+        """Check if the given data is a MediaContact object."""
         qstring_offsets: List[int] = [self.shared_contact_offsets['firstname'], self.shared_contact_offsets['lastname'],
                                       self.shared_contact_offsets['phone_number']]
 
@@ -338,7 +338,7 @@ class TelegramDesktopArtifactAnalyzer(ArtifactAnalyzer):
         return True
 
     def is_media_location(self, raw_location: bytes) -> bool:
-        """Check if the given data is a MediaLocation object"""
+        """Check if the given data is a MediaLocation object."""
         qstring_offsets: List[int] = [self.media_location_offsets['title'],
                                       self.media_location_offsets['description']]
 
@@ -351,11 +351,11 @@ class TelegramDesktopArtifactAnalyzer(ArtifactAnalyzer):
         return True
 
     def retrieve_account_owner_id(self, raw_peerdata: bytes) -> int:
-        """Retrieve the id of the account owner related to a user or a conversation"""
+        """Retrieve the id of the account owner related to a user or a conversation."""
 
         # There are four steps to achieve the id of the account owner:
-        # Note: raw_peerdata is a PeerData object
-        # First step: Retrieve the _owner pointer, in order to get the contents of the Data::Session object
+        # Note: raw_peerdata is a PeerData object.
+        # First step: Retrieve the _owner pointer, in order to get the contents of the Data::Session object.
         data_session_subpattern_size = 48
         data_session_offset: int = self.artifact_extractor.peer_offsets['data_session']
         data_session_pointer = bytearray(raw_peerdata[data_session_offset:data_session_offset + 8])
@@ -365,7 +365,7 @@ class TelegramDesktopArtifactAnalyzer(ArtifactAnalyzer):
                                                        data_session_subpattern_size)
 
         # Second step: Retrieve the _session pointer stored in the Data::Session object, in order to get the contents
-        # of the Main::Session object
+        # of the Main::Session object.
         if raw_data_session is not None:
             data_session_offsets: Dict[str, int] = {'main_session': 0}
             main_session_offsets: Dict[str, int] = {'user': 128}
@@ -378,7 +378,7 @@ class TelegramDesktopArtifactAnalyzer(ArtifactAnalyzer):
                                                            main_session_subpattern_size)
 
             # Third step: Retrieve the _user pointer stored in the Main::Session object, in order to identify the owner
-            # of the account
+            # of the account.
             if raw_main_session is not None:
                 account_owner_offset: int = main_session_offsets['user']
                 account_owner_pointer = bytearray(raw_main_session[account_owner_offset:account_owner_offset + 8])
@@ -388,7 +388,7 @@ class TelegramDesktopArtifactAnalyzer(ArtifactAnalyzer):
                                                                     account_owner_pointer_as_str, 0,
                                                                     self.artifact_extractor.peer_offsets['id'] + 8)
 
-                    # Fourth step: Retrieve the id of the account owner
+                    # Fourth step: Retrieve the id of the account owner.
                     if raw_account_owner is not None:
                         account_owner_id_offset: int = self.artifact_extractor.peer_offsets['id']
                         account_owner_id_data: int = int(
@@ -398,6 +398,6 @@ class TelegramDesktopArtifactAnalyzer(ArtifactAnalyzer):
 
 
 def little_endian_to_big_endian(data_as_bytearray: bytearray) -> str:
-    """Transform data from little endian to big endian"""
+    """Transform data from little endian to big endian."""
     data_as_bytearray.reverse()
     return bytes(data_as_bytearray).hex()

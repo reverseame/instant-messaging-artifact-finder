@@ -41,7 +41,7 @@ class TelegramDesktopArtifactExtractor(ArtifactExtractor):
                                              'phone': 560, 'is_contact': 568, 'bytes_above_phone': 35 * 16,
                                              'bytes_below_phone': 16}
         self.user_subpattern_size: int = self.user_offsets['bytes_above_phone'] + self.user_offsets['bytes_below_phone']
-        # Patterns to find the contents of QString objects
+        # Patterns to find the contents of QString objects.
         self.qstring_contents_patterns = {'more_strict': re.compile(
             rb'[\x00\x01\x02][\x00]{3}[\x00-\xff][\x00]{3}[\x00-\xff][\x00]{2}[\x00\x80][\x00-\xff]{4}\x18[\x00]{7}[\x00-\xff]*?[\x00]{2}'),
             'less_strict': re.compile(rb'[\x00-\xff]{16}\x18[\x00]{7}[\x00-\xff]*?[\x00]{2}')}
@@ -51,27 +51,27 @@ class TelegramDesktopArtifactExtractor(ArtifactExtractor):
 
     def extract_users(self) -> List[bytes]:
         raw_users: List[bytes] = []
-        # Distance, in bytes, between the same attribute of two users stored next to each other in memory
+        # Distance, in bytes, between the same attribute of two users stored next to each other in memory.
         distance_between_users: int = 592
 
-        # First, find users based on mobile phone numbers
+        # First, find users based on mobile phone numbers.
         phone_number_pattern = re.compile(rb'(\d\x00){7,16}[\x00]{2}')
         phone_numbers: List[Tuple[bytes, str]] = find_matches_and_their_addresses(self.memory_data_path,
                                                                                   phone_number_pattern)
-        user_addresses: List[int] = []  # Memory addresses of UserData objects
+        user_addresses: List[int] = []  # Memory addresses of UserData objects.
         for phone_number in phone_numbers:
-            # Calculate the address where the contents of the QString object are
+            # Calculate the address where the contents of the QString object are.
             qstring_contents_address: str = hex(int(phone_number[1], 16) - 24)
             if self.is_address_of_qstring_contents(qstring_contents_address):
                 qstring_contents_address_as_int: int = int(qstring_contents_address, 16)
                 qstring_contents_address_little_endian: bytes = struct.pack('<Q', qstring_contents_address_as_int)
-                # Find the QString contents address in memory, and where that address is stored
+                # Find the QString contents address in memory, and where that address is stored.
                 matches: List[Tuple[bytes, str]] = find_matches_and_their_addresses(self.memory_data_path,
                                                                                     re.compile(
                                                                                         re.escape(
                                                                                             qstring_contents_address_little_endian)))
                 for match in matches:
-                    # Around the phone number QString, additional information about a user can be found
+                    # Around the phone number QString, additional information about a user can be found.
                     contents: bytes = extract_surroundings(self.memory_data_path, match[1],
                                                            self.user_offsets['bytes_above_phone'],
                                                            self.user_offsets['bytes_below_phone'])
@@ -82,8 +82,8 @@ class TelegramDesktopArtifactExtractor(ArtifactExtractor):
 
         logger.debug(f'Potential Telegram Desktop raw users extracted by phone number: {len(raw_users)}')
 
-        # Second, find users who are next in memory to the users previously found
-        user_addresses.sort()  # In increasing order
+        # Second, find users who are next in memory to the users previously found.
+        user_addresses.sort()  # In increasing order.
         new_user_addresses: List[int] = []
         for user_address in user_addresses:
             next_user_address: int = user_address + distance_between_users
@@ -98,7 +98,7 @@ class TelegramDesktopArtifactExtractor(ArtifactExtractor):
                 else:
                     break
 
-        user_addresses.sort(reverse=True)  # In decreasing order
+        user_addresses.sort(reverse=True)  # In decreasing order.
         for user_address in user_addresses:
             next_user_address: int = user_address - distance_between_users
             while next_user_address not in user_addresses and next_user_address not in new_user_addresses and self.is_raw_user(
@@ -122,23 +122,23 @@ class TelegramDesktopArtifactExtractor(ArtifactExtractor):
         raw_messages: List[bytes] = []
         bytes_above_timetext: int = 10 * 16
         bytes_below_timetext: int = 16
-        # Pattern to find valid times
+        # Pattern to find valid times.
         timetext_pattern = re.compile(rb'([0-2]\x00)?\d\x00:\x00[0-5]\x00\d\x00')
         timetexts: List[Tuple[bytes, str]] = find_matches_and_their_addresses(self.memory_data_path, timetext_pattern)
         for timetext in timetexts:
-            # Calculate the address where the contents of the QString object _timeText are
-            # _timeText is an attribute that belongs to the class HistoryMessage
+            # Calculate the address where the contents of the QString object _timeText are.
+            # _timeText is an attribute that belongs to the class HistoryMessage.
             timetext_contents_address: str = hex(int(timetext[1], 16) - 24)
             if self.is_address_of_qstring_contents(timetext_contents_address):
                 timetext_contents_address_as_int: int = int(timetext_contents_address, 16)
                 timetext_contents_address_little_endian: bytes = struct.pack('<Q', timetext_contents_address_as_int)
-                # Find the _timeText contents address in memory, and where that address is stored
+                # Find the _timeText contents address in memory, and where that address is stored.
                 matches: List[Tuple[bytes, str]] = find_matches_and_their_addresses(self.memory_data_path,
                                                                                     re.compile(
                                                                                         re.escape(
                                                                                             timetext_contents_address_little_endian)))
                 for match in matches:
-                    # Around the _timeText QString, additional information about a message can be found
+                    # Around the _timeText QString, additional information about a message can be found.
                     contents: bytes = extract_surroundings(self.memory_data_path, match[1], bytes_above_timetext,
                                                            bytes_below_timetext)
                     if contents is not None:
@@ -162,11 +162,11 @@ class TelegramDesktopArtifactExtractor(ArtifactExtractor):
                                       self.user_offsets['phone']]
 
         for qstring_offset in qstring_offsets:
-            # Obtain the address in little endian
+            # Obtain the address in little endian.
             qstring_contents_address: bytes = extract_surroundings(self.memory_data_path,
                                                                    hex(address_as_int + qstring_offset), 0, 8)
             if qstring_contents_address is not None:
-                # Transform the address to big endian
+                # Transform the address to big endian.
                 qstring_contents_address_as_bytearray = bytearray(qstring_contents_address)
                 qstring_contents_address_as_bytearray.reverse()
                 if not self.is_address_of_qstring_contents(bytes(qstring_contents_address_as_bytearray).hex()):
@@ -177,7 +177,7 @@ class TelegramDesktopArtifactExtractor(ArtifactExtractor):
         return True
 
     def extract_qstring_text(self, address: str) -> str:
-        """Extract the text of the first QString contents found after the address supplied"""
+        """Extract the text of the first QString contents found after the address supplied."""
         address_as_int: int = int(address, 16)
         qstring_contents_pattern = self.qstring_contents_patterns['less_strict']
         for filename in os.listdir(self.memory_data_path):
@@ -202,7 +202,7 @@ class TelegramDesktopArtifactExtractor(ArtifactExtractor):
                                     return 'Error when decoding from UTF-16'
 
     def is_address_of_qstring_contents(self, address: str) -> bool:
-        """Find out if the given address points to the contents of a QString object"""
+        """Find out if the given address points to the contents of a QString object."""
         address_as_int: int = int(address, 16)
         qstring_contents_pattern = self.qstring_contents_patterns['less_strict']
         for filename in os.listdir(self.memory_data_path):
@@ -220,7 +220,7 @@ class TelegramDesktopArtifactExtractor(ArtifactExtractor):
 
 
 def find_matches(memory_data_path: str, regex) -> List[bytes]:
-    """Find all the matches of a pattern in the memory data"""
+    """Find all the matches of a pattern in the memory data."""
     matches: List[bytes] = []
     for filename in os.listdir(memory_data_path):
         if filename.endswith('.dmp'):
@@ -232,7 +232,7 @@ def find_matches(memory_data_path: str, regex) -> List[bytes]:
 
 
 def find_matches_and_their_addresses(memory_data_path: str, regex) -> List[Tuple[bytes, str]]:
-    """Find all the matches of a pattern in the memory data and the addresses where the matches were found"""
+    """Find all the matches of a pattern in the memory data and the addresses where the matches were found."""
     matches: List[Tuple[bytes, str]] = []
     for filename in os.listdir(memory_data_path):
         if filename.endswith('.dmp'):
@@ -246,7 +246,7 @@ def find_matches_and_their_addresses(memory_data_path: str, regex) -> List[Tuple
 
 
 def extract_surroundings(memory_data_path: str, address: str, above_bytes_count: int, below_bytes_count: int) -> bytes:
-    """Extract the contents around an address"""
+    """Extract the contents around an address."""
     address_as_int: int = int(address, 16)
     for filename in os.listdir(memory_data_path):
         if filename.endswith('.dmp'):

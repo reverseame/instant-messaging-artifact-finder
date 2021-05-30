@@ -152,10 +152,10 @@ class TelegramDesktopFactory(InstantMessagingPlatformFactory):
                         message: TelegramDesktopMessage = self.create_message(message_data)
                         if message is not None:
                             messages.append(message)
-                    messages.sort(key=lambda x: x.date)  # Sort the messages by the time they were sent
+                    messages.sort(key=lambda x: x.date)  # Sort the messages by the time they were sent.
                     conversation.messages = messages
-                    # If the conversation is an individual conversation, identify the two users involved
-                    # Besides, if the conversation is a group, identify the participants
+                    # If the conversation is an individual conversation, identify the two users involved.
+                    # Besides, if the conversation is a group, identify the participants.
                     if conversation_type == 'Individual conversation' or conversation_type == 'Group':
                         users: List[User] = []
                         for message in messages:

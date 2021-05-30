@@ -13,7 +13,7 @@ from analyzers import ArtifactAnalyzer
 from organizers import ArtifactOrganizer
 from writers import Writer, JsonWriter
 
-default_log_level = logging.DEBUG
+default_log_level = logging.INFO
 logging.basicConfig(level=default_log_level)
 logger = logging.getLogger(__name__)
 
@@ -130,7 +130,7 @@ def generate_summary(accounts: List[Account]) -> None:
 
 
 def validate_memory_data_path(memory_data_path) -> None:
-    """Validate that the directory exists and that it contains at least one .dmp file"""
+    """Validate that the directory exists and that it contains at least one .dmp file."""
     if not os.path.isdir(memory_data_path):
         raise FileNotFoundError('The memory data directory supplied does not exist')
 
@@ -139,9 +139,9 @@ def validate_memory_data_path(memory_data_path) -> None:
 
 
 def validate_arguments() -> Tuple[str, InstantMessagingPlatform, ReportFormat, bool]:
-    """Parse and validate command line arguments"""
+    """Parse and validate command line arguments."""
     arg_parser = argparse.ArgumentParser(description='Find memory artifacts from instant messaging applications')
-    arg_parser.version = '0.0.0'
+    arg_parser.version = '1.0.0'
     arg_parser.add_argument('-v',
                             '--version',
                             action='version',
@@ -202,10 +202,10 @@ def find_artifacts(memory_data_path: str, platform: InstantMessagingPlatform, re
 
 def execute() -> None:
     try:
-        logger.info('Execution has started')
+        logger.debug('Execution has started')
         validated_arguments: Tuple[str, InstantMessagingPlatform, ReportFormat, bool] = validate_arguments()
         find_artifacts(validated_arguments[0], validated_arguments[1], validated_arguments[2], validated_arguments[3])
-        logger.info('Execution has finished')
+        logger.debug('Execution has finished')
     except Exception as exception:
         logger.exception(exception)
         print('Error:', exception)

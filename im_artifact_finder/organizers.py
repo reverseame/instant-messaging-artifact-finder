@@ -27,7 +27,7 @@ class TelegramDesktopArtifactOrganizer(ArtifactOrganizer):
                                  conversations: List[Dict[str, Any]], messages: List[Dict[str, Any]],
                                  message_attachments: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
-        # Identify all the conversations
+        # Identify all the conversations.
         conversations: List[Dict[str, Any]] = []
         for message_data in messages:
             if 'conversation' in message_data and 'id' in message_data['conversation'] and 'account_owner_id' in \
@@ -36,13 +36,13 @@ class TelegramDesktopArtifactOrganizer(ArtifactOrganizer):
                     message_data['conversation']['messages'] = []
                     conversations.append(message_data['conversation'])
 
-        # Place each message in the right conversation
+        # Place each message in the right conversation.
         for message_data in messages:
             if 'conversation' in message_data and 'id' in message_data['conversation'] and 'account_owner_id' in \
                     message_data['conversation']:
                 insert_message_in_right_conversation(conversations, message_data)
 
-        # Place the users and conversations in their respective accounts
+        # Place the users and conversations in their respective accounts.
         account_owner_ids: List[int] = []
         for user in users:
             if user['account_owner_id'] not in account_owner_ids:
